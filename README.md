@@ -3,7 +3,7 @@
 ## Blockchain
 Source code adapted from [dvf/blockchain](https://github.com/dvf/blockchain). Primarily modified by adding key generation and signatures.
 
-##### TODO:
+#### TODO:
 - Add transaction identification using UTXO model
 - Limit total supply of coins
 - Improve node system
@@ -20,7 +20,7 @@ You will be prompted for a port number to listen for HTTP requests on, as well a
 >>> Use FALCON? (y/n): [e.g. y]
 ```
 
-#### FALCON signature
+### FALCON signature
 
 The first time a transaction is carried out, there will be prompts for several parameter:
 ```
@@ -30,7 +30,7 @@ The first time a transaction is carried out, there will be prompts for several p
 >>> Enter file name: [Enter file name here if polys are saved in different file location]
 ```
 
-#### Ed25519 (PyNaCl) signature
+### Ed25519 (PyNaCl) signature
 
 The first time a transaction is carried out, there will be prompts for several parameter:
 ```
@@ -40,7 +40,7 @@ The first time a transaction is carried out, there will be prompts for several p
 >>> Enter your password: [Enter password here to generate unique private key with salt]
 ```
 
-#### Blockchain interactions (as of 21/5)
+### Blockchain interactions (as of 21/5)
 
 Send the following HTTP requests, e.g. using [Postman](https://www.postman.com/downloads/), for the following interactions. Note: the request is preceded by the HTTP address, e.g. http://localhost:5000/mine:
 - [GET] /mine: Mine a new block using the POW scheme, adding all pending transactions to the block.
