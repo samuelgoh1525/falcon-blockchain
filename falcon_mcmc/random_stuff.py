@@ -1,0 +1,17 @@
+import falcon
+
+sk = falcon.SecretKey(4)
+print("===============================================")
+print(sk)
+print("===============================================")
+pk = falcon.PublicKey(sk)
+print(pk)
+print("===============================================")
+print()
+sig = sk.sign(b"Hello")
+print("Signature: ", sig)
+print("===============================================")
+check = pk.verify(b"Hello", sig)
+print()
+print("Signature verified: ", check)
+print("===============================================")
