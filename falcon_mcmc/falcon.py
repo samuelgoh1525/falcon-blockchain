@@ -316,6 +316,9 @@ class SecretKey:
         #     v = z * B0 for an integral vector z
         #     v is close to (point, 0)
 
+        '''
+        MCMC sampling
+        '''
         i_mix = 50
         #TODO: change mixing time
         if seed is None:
