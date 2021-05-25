@@ -21,6 +21,7 @@ if sys.version_info >= (3, 4):
     from importlib import reload  # Python 3.4+ only.
 
 from random import uniform
+from copy import deepcopy
 
 
 set_printoptions(linewidth=200, precision=5, suppress=True)
@@ -248,6 +249,11 @@ class SecretKey:
 
         self.T_fft = ffldl_fft(G0_fft)
 
+        '''
+        store original T_fft
+        '''
+        self.orig_T_fft = deepcopy(self.T_fft)
+
         # Normalize Falcon tree
         normalize_tree(self.T_fft, self.sigma)
 
@@ -319,7 +325,7 @@ class SecretKey:
         '''
         MCMC sampling
         '''
-        i_mix = 50
+        i_mix = int(input("Enter number of iterations: "))
         #TODO: change mixing time
         if seed is None:
             # If no seed is defined, use urandom as the pseudo-random source.
@@ -331,6 +337,21 @@ class SecretKey:
             chacha_prng = ChaCha20(seed)
             z_0 = ffsampling_fft(t_fft, self.T_fft, self.sigmin,
                                    chacha_prng.randombytes)
+
+
+        '''
+        Testing
+        '''
+        v0_og, v1_og = self.calc_v(z_0)
+        s_og = [sub(point, v0_og), neg(v1_og)]
+        og_squared_norm = self.calc_norm(s_og)
+        num_moves = 0
+        '''
+        Reduce sigma in T_fft?
+        '''
+        reduction_factor = float(input("Reduce sigma by: "))
+        self.T_fft = deepcopy(self.orig_T_fft)
+        normalize_tree(self.T_fft, self.sigma * reduction_factor)
 
         for i in range(i_mix):
             if seed is None:
@@ -354,26 +375,32 @@ class SecretKey:
             s_old = [sub(point, v0_old), neg(v1_old)]
             new_squared_norm = self.calc_norm(s_new)
             old_squared_norm = self.calc_norm(s_old)
-            print("new_squared_norm: ", new_squared_norm, ", old_squared_norm: ", old_squared_norm)
+
 
             old_new_ratio = exp( (1 / (2 * (self.sigma ** 2) ) ) * (old_squared_norm - new_squared_norm) )
             acceptance_ratio = min(1, old_new_ratio)
             u = uniform(0, 1)
             if u <= acceptance_ratio:
-
-                print("accepted -- ", "ratio: ", acceptance_ratio, ",u: ", u)
+                print("[", i+1, "]: new_squared_norm: ", new_squared_norm, ", old_squared_norm: ", old_squared_norm)
+                print("\naccepted -- ", "ratio: ", acceptance_ratio, ",u: ", u, "\n")
+                num_moves += 1
 
                 z_0 = z_fft
 
         v0, v1 = self.calc_v(z_0)
         s = [sub(point, v0), neg(v1)]
         '''
-        if self.calc_norm(s) == 0:
-            print("===private basis exposed===")
-        else:
-            print("===private basis safe===")
+        Testing
         '''
+        final_squared_norm = self.calc_norm(s)
+        print("\nOriginal squared norm: ", og_squared_norm, "; Final squared norm: ", final_squared_norm, "\n")
+        print("\nNumber of Markov moves: ", num_moves, "\n")
 
+        '''
+        Restore T_fft
+        '''
+        self.T_fft = deepcopy(self.orig_T_fft)
+        normalize_tree(self.T_fft, self.sigma)
         return s
 
     def calc_v(self, z_fft):
@@ -426,7 +453,7 @@ class SecretKey:
 
             else:
                 '''
-                TODO: own check
+                TODO: delete own check
                 '''
                 print("Too big... retrying")
 
