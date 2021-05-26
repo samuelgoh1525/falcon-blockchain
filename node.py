@@ -10,6 +10,7 @@ from flask import Flask, jsonify, request
 import pickle
 
 from blockchain import Blockchain
+from utxo import UTXO
 import keys
 
 # Instantiate the Node
@@ -21,6 +22,10 @@ node_identifier = str(uuid4()).replace('-', '')
 # Instantiate the Blockchain
 blockchain = Blockchain()
 
+# Instantiate the UTXO set
+utxo_set = UTXO()
+
+
 private_key = None
 
 falcon_mode = True
@@ -31,6 +36,10 @@ def mine():
     # The sender is "__mined__" to signify that this node has mined a new coin.
 
     #TODO: check transactions valid
+
+    # We also need to modify the UTXO set accordingly
+    # 1) Remove the spent transaction outputs
+    # 2) Add the new unspent transaction outputs
     global private_key
     if private_key == None:
 
@@ -47,13 +56,45 @@ def mine():
 
     public_key_hex = public_key.hex()
 
+    block_index = blockchain.last_block['index'] + 1
+
+    mined_input = [{
+        'id': 'mined',
+        'output_index': 'mined',
+        'block_index': block_index,
+        'amount': 100,
+    }]
+
+    signature = keys.sign(mined_input, private_key)
+    if falcon_mode:
+        mined_input[0]['signature'] = signature.hex()
+    else:
+        mined_input[0]['signature'] = (signature.signature).hex()
+
+    mined_output = [{
+        'amount': 100,
+        'address': public_key_hex,
+    }]
+
+    utxo_set.mine_new_coins(100)
+
+    transaction = {
+        'inputs': mined_input,
+        'outputs': mined_output,
+    }
+
+    transaction_string = json.dumps(transaction, sort_keys=True).encode()
+    transaction['id'] = hashlib.sha256(transaction_string).hexdigest()
+
+    #utxo_set.add_utxo(transaction['id'], 0, block_index, transaction['outputs'][0]['amount'], transaction['outputs'][0]['address'])
+
+    '''
     transaction = blockchain.new_transaction(
         #TODO: sender address for mined
         sender="__mined__",
         #sender=hashlib.sha256("__mined__".encode()).hexdigest(),
         recipient=public_key_hex,
-        #TODO: change the amount of coin received, limit total supply of coins
-        amount=1,
+        amount=100,
     )
 
     signature = keys.sign(transaction, private_key)
@@ -61,13 +102,19 @@ def mine():
         transaction['signature'] = signature.hex()
     else:
         transaction['signature'] = (signature.signature).hex()
+    '''
     blockchain.append_transaction(transaction)
 
     # We run the proof of work algorithm to get the next proof...
     pow_block = blockchain.proof_of_work()
 
     # Forge the new Block by adding it to the chain
-    chain = blockchain.add_block(pow_block)
+    chain, all_transactions = blockchain.add_block(pow_block)
+
+    # Add new unspent transaction outputs to utxo set
+    # Remove the spent transaction outputs
+    for transaction in all_transactions:
+        utxo_set.modify_utxo(transaction, public_key_hex, pow_block['index'])
 
     response = {
         'message': "New Block Forged",
@@ -75,10 +122,10 @@ def mine():
         'transactions': pow_block['transactions'],
         'hash': pow_block['hash'],
         'previous_hash': pow_block['previous_hash'],
-        #'miner': public_key_hex,
     }
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 200
+
 
 @app.route('/transactions/get', methods=['GET'])
 def get_transactions():
@@ -87,6 +134,7 @@ def get_transactions():
     }
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 200
+
 
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
@@ -102,19 +150,23 @@ def new_transaction():
 
     public_key = keys.generate_public_key(private_key, is_falcon=falcon_mode)
     if falcon_mode:
-        public_key = {'n': public_key.n, 'h': public_key.h}
-        public_key = pickle.dumps(public_key)
+        public_key_pickled = pickle.dumps({'n': public_key.n, 'h': public_key.h})
+        public_key_hex = public_key_pickled.hex()
 
-    public_key_hex = public_key.hex()
+    else:
+        public_key_hex = public_key.hex()
 
     values = request.get_json()
 
-    # Check that the required fields are in the POST'ed data
-    required = ['recipient', 'amount']
+    required = ['recipients', 'amounts']
     if not all(k in values for k in required):
         return 'Missing values', 400
 
     # Create a new Transaction
+    # TODO: error checking if not enough coins
+    transaction = utxo_set.make_transaction(public_key_hex, values['recipients'], values['amounts'], private_key, falcon_mode)
+
+    '''
     transaction = blockchain.new_transaction(public_key_hex, values['recipient'], values['amount'])
 
     # Generate signature for transaction
@@ -126,19 +178,21 @@ def new_transaction():
     else:
         transaction['signature'] = (signature.signature).hex()
         valid_sign = keys.verify_sign(signature.message, signature.signature, public_key_hex)
-
+    '''
     index = blockchain.append_transaction(transaction)
 
     response = {
         'message': f'Transaction will be added to Block {index}',
-        'sender': public_key_hex,
-        'recipient': values['recipient'],
-        'amount': values['amount'],
-        'signature': transaction['signature'],
-        'valid signature': valid_sign,
+        'transaction': transaction,
+        #'sender': public_key_hex,
+        #'recipients': values['recipients'],
+        #'amounts': values['amounts'],
+        #'signature': transaction['signature'],
+        #'valid signature': valid_sign,
     }
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 201
+
 
 @app.route('/chain/get', methods=['GET'])
 def full_chain():
@@ -148,6 +202,7 @@ def full_chain():
     }
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 200
+
 
 @app.route('/chain/valid', methods=['GET'])
 def valid_chain():
@@ -159,6 +214,40 @@ def valid_chain():
     }
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 200
+
+
+@app.route('/utxo/all', methods=['GET'])
+def get_utxo_all():
+    response = {
+        'utxo_all': utxo_set.transaction_outputs,
+    }
+    print("\n", json.dumps(response, indent=2), "\n")
+    return jsonify(response), 200
+
+
+@app.route('/utxo/user', methods=['GET'])
+def get_utxo_user():
+    values = request.get_json()
+
+    required = ['user']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
+
+    response = {
+        'address': values['user'],
+        'utxo_user': utxo_set.get_user_amount(values['user']),
+    }
+    print("\n", json.dumps(response, indent=2), "\n")
+    return jsonify(response), 200
+
+@app.route('/utxo/unmined', methods=['GET'])
+def get_utxo_unmined():
+    response = {
+        'unmined': utxo_set.unmined,
+    }
+    print("\n", json.dumps(response, indent=2), "\n")
+    return jsonify(response), 200
+
 
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():

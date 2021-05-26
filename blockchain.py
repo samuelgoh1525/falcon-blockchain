@@ -5,10 +5,11 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import random
-
+import copy
 import requests
 
 import keys
+from utxo import UTXO
 
 
 class Blockchain:
@@ -16,6 +17,8 @@ class Blockchain:
         self.current_transactions = []
         self.chain = []
         self.nodes = set()
+        # Instantiate the utxo set
+        self.utxo_set = UTXO()
 
         # Create the genesis block
         genesis_block = self.new_block(previous_hash='genesis')
@@ -47,6 +50,10 @@ class Blockchain:
         :return: True if valid, False if not
         """
 
+        '''
+        TODO: check timestamps also?
+        '''
+
         last_block = chain[0]
         # Check genesis block
         if not self.valid_proof(last_block, last_block['hash'], genesis=True):
@@ -56,11 +63,7 @@ class Blockchain:
 
         while current_index < len(chain):
             block = chain[current_index]
-            '''
-            print(f'{last_block}')
-            print(f'{block}')
-            print("\n-----------\n")
-            '''
+
             # Check that the hash of the block is correct
             if block['previous_hash'] != last_block['hash']:
                 return False
@@ -118,7 +121,7 @@ class Blockchain:
         """
 
         block = {
-            'index': len(self.chain) + 1,
+            'index': len(self.chain),
             'timestamp': time(),
             'transactions': self.current_transactions,
             'previous_hash': previous_hash or self.chain[-1]['hash'],
@@ -130,11 +133,14 @@ class Blockchain:
     def add_block(self, block):
 
         # Reset the current list of transactions
-        #TODO: remove all transactions? or only remove transactions that have been verified
+        '''
+        TODO: remove all transactions? or only remove transactions that have been verified
+        '''
+        all_transactions = self.current_transactions
         self.current_transactions = []
 
         self.chain.append(block)
-        return self.chain
+        return self.chain, all_transactions
 
     @staticmethod
     def new_transaction(sender, recipient, amount):
@@ -146,6 +152,7 @@ class Blockchain:
         :param amount: Amount
         :return: The index of the Block that will hold this transaction
         """
+
         transaction = {
             'sender': sender,
             'recipient': recipient,
