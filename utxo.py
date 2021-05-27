@@ -23,13 +23,14 @@ class UTXO:
     def __init__(self):
         # List of (unspent) transaction outputs
         '''
-        <list> dict:
-            - id
-            - output_index
-            - block_index
+        UTXO format:
+            <list> dict:
+                - id
+                - output_index
+                - block_index
 
-            - amount
-            - address
+                - amount
+                - address
         '''
         self.transaction_outputs = []
 
@@ -49,6 +50,17 @@ class UTXO:
                 total += output['amount']
 
         return total
+
+    def add_utxo(self, id_in, output_index_in, block_index_in, amount_in, address_in):
+        tx = {
+            'id': id_in,
+            'output_index': output_index_in,
+            'block_index': block_index_in,
+            'amount': amount_in,
+            'address': address_in,
+        }
+        self.transaction_outputs.append(tx)
+        return tx
 
     def modify_utxo(self, transaction, user_addr, block_index):
         for input in transaction['inputs']:
@@ -79,6 +91,25 @@ class UTXO:
 
         return self.transaction_outputs
 
+    def assign_block_index(self, transaction, block_index):
+        index = 0
+        for output in transaction['outputs']:
+            # Assign block index to the utxo set
+            tx_to_find = {
+                'id': transaction['id'],
+                'output_index': index,
+                'block_index': None,
+                'amount': output['amount'],
+                'address': output['address'],
+            }
+            try:
+                tx_index = self.transaction_outputs.index(tx_to_find)
+                self.transaction_outputs[tx_index]['block_index'] = block_index
+            except ValueError:
+                return False
+            index += 1
+
+        return True
     def make_transaction(self, sender, recipients, amounts, sender_key, is_falcon):
         # Note: recipients and amounts are <lists>
 
@@ -109,6 +140,7 @@ class UTXO:
                 sender_balance += output['amount']
 
                 utxo_entry = copy.deepcopy(output)
+                utxo_entry.pop('address')
 
                 # For each input, generate a signature with the sender's private key
                 signature = keys.sign(utxo_entry, sender_key)

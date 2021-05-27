@@ -35,8 +35,6 @@ def mine():
     # We must receive a reward for finding the proof.
     # The sender is "__mined__" to signify that this node has mined a new coin.
 
-    #TODO: check transactions valid
-
     # We also need to modify the UTXO set accordingly
     # 1) Remove the spent transaction outputs
     # 2) Add the new unspent transaction outputs
@@ -86,23 +84,6 @@ def mine():
     transaction_string = json.dumps(transaction, sort_keys=True).encode()
     transaction['id'] = hashlib.sha256(transaction_string).hexdigest()
 
-    #utxo_set.add_utxo(transaction['id'], 0, block_index, transaction['outputs'][0]['amount'], transaction['outputs'][0]['address'])
-
-    '''
-    transaction = blockchain.new_transaction(
-        #TODO: sender address for mined
-        sender="__mined__",
-        #sender=hashlib.sha256("__mined__".encode()).hexdigest(),
-        recipient=public_key_hex,
-        amount=100,
-    )
-
-    signature = keys.sign(transaction, private_key)
-    if falcon_mode:
-        transaction['signature'] = signature.hex()
-    else:
-        transaction['signature'] = (signature.signature).hex()
-    '''
     blockchain.append_transaction(transaction)
 
     # We run the proof of work algorithm to get the next proof...
@@ -111,10 +92,27 @@ def mine():
     # Forge the new Block by adding it to the chain
     chain, all_transactions = blockchain.add_block(pow_block)
 
+    '''
     # Add new unspent transaction outputs to utxo set
     # Remove the spent transaction outputs
     for transaction in all_transactions:
         utxo_set.modify_utxo(transaction, public_key_hex, pow_block['index'])
+    '''
+    # Add mined output to utxo set
+    utxo_set.add_utxo(transaction['id'], 0, block_index, transaction['outputs'][0]['amount'], transaction['outputs'][0]['address'])
+
+    # Assign block index to utxo
+    success = True
+    for transaction in all_transactions:
+        if transaction['inputs'][0]['id'] != 'mined':
+            success = utxo_set.assign_block_index(transaction, pow_block['index'])
+
+    if not success:
+        response = {
+            'message': "Failure to assign block index"
+        }
+        print("\n", json.dumps(response, indent=2), "\n")
+        return jsonify(response), 401
 
     response = {
         'message': "New Block Forged",
@@ -136,9 +134,51 @@ def get_transactions():
     return jsonify(response), 200
 
 
+@app.route('/transactions/verify', methods=['GET'])
+def verify_transaction():
+    values = request.get_json()
+
+    required = ['id', 'output_index', 'block_index', 'amount', 'signature']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
+
+    # Check if the sender really has the coins
+    block = blockchain.chain[values['block_index']]
+    sender_pub_key_addr = None
+    for transaction in block['transactions']:
+        if transaction['id'] == values['id']:
+            sender_pub_key_addr = transaction['outputs'][values['output_index']]['address']
+            break
+
+    #signature = keys.sign(transaction, private_key)
+    if sender_pub_key_addr != None:
+        utxo_entry = {
+            'id': values['id'],
+            'output_index': values['output_index'],
+            'block_index': values['block_index'],
+            'amount': values['amount'],
+        }
+        utxo_entry_bytes = json.dumps(utxo_entry, sort_keys=True).encode('utf-8')
+
+        valid_sign = keys.verify_sign(utxo_entry_bytes, bytes.fromhex(values['signature']), sender_pub_key_addr, is_falcon=falcon_mode)
+
+        response = {
+            'sender': sender_pub_key_addr,
+            'utxo': utxo_entry,
+            'valid': valid_sign,
+        }
+        print("\n", json.dumps(response, indent=2), "\n")
+        return jsonify(response), 200
+    else:
+        response = {
+            'message': 'Transaction not found',
+        }
+        print("\n", json.dumps(response, indent=2), "\n")
+        return jsonify(response), 401
+
+
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
-    #TODO: verify transactions in terms of making sure people do not spend coins they do not own (UTXO model)
     global private_key
     if private_key == None:
 
@@ -179,17 +219,29 @@ def new_transaction():
         transaction['signature'] = (signature.signature).hex()
         valid_sign = keys.verify_sign(signature.message, signature.signature, public_key_hex)
     '''
-    index = blockchain.append_transaction(transaction)
+    if transaction != None:
+        index = blockchain.append_transaction(transaction)
+        response = {
+            'message': f'Transaction will be added to Block {index}',
+            'transaction': transaction,
+            #'sender': public_key_hex,
+            #'recipients': values['recipients'],
+            #'amounts': values['amounts'],
+            #'signature': transaction['signature'],
+            #'valid signature': valid_sign,
+        }
+        # Add new unspent transaction outputs to utxo set
+        # Remove the spent transaction outputs
+        utxo_set.modify_utxo(transaction, public_key_hex, None)
+    else:
+        response = {
+            'message': 'Insufficient balance',
+            'amount_required': sum(values['amounts']),
+            'user': public_key_hex,
+            'user_balance': utxo_set.get_user_amount(public_key_hex),
+        }
 
-    response = {
-        'message': f'Transaction will be added to Block {index}',
-        'transaction': transaction,
-        #'sender': public_key_hex,
-        #'recipients': values['recipients'],
-        #'amounts': values['amounts'],
-        #'signature': transaction['signature'],
-        #'valid signature': valid_sign,
-    }
+
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 201
 

@@ -133,9 +133,6 @@ class Blockchain:
     def add_block(self, block):
 
         # Reset the current list of transactions
-        '''
-        TODO: remove all transactions? or only remove transactions that have been verified
-        '''
         all_transactions = self.current_transactions
         self.current_transactions = []
 

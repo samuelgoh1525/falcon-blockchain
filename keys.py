@@ -125,6 +125,7 @@ def sign(message, private_key):
 
 def verify_sign(signed_message, signature, public_key_hex, is_falcon=False):
     '''
+    signed message is in bytes
     public key is in hex
     falcon public key is in <n, h> form
     '''
