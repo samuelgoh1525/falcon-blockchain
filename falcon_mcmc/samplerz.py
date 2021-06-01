@@ -1,9 +1,11 @@
 # Importing dependencies
-from math import floor
+from math import floor, exp
 
 # Use high-quality randomness
 # The "secrets" library could also work (Python >= 3.6)
 from os import urandom
+
+from random import uniform
 
 
 # Upper bound on all the values of sigma
@@ -151,3 +153,50 @@ def samplerz(mu, sigma, sigmin, randombytes=urandom):
         x -= (z0 ** 2) * INV_2SIGMA2
         if berexp(x, ccs, randombytes=randombytes):
             return z + s
+
+def sum_prob(mu, sigma, range_in=18):
+    # Calculate denominator of Eq 3.11 in FALCON
+    lower_bound = round(mu) - range_in
+    upper_bound = round(mu) + range_in
+    sum = 0
+
+    # upper_bound+1 to include last element
+    for x in range(lower_bound, upper_bound+1):
+        sum = sum + exp( (-abs(x - mu) ** 2)/(2 * sigma ** 2) )
+
+    return sum
+
+def small_samplerz(mu, sigma):
+    # An integer z sampled from a distribution very close to D_z,mu,sigma
+
+    # Denominator
+    sum = sum_prob(mu, sigma, 10)
+
+    lower_bound = round(mu) - 10
+    upper_bound = round(mu) + 10
+
+    # upper_bound+1 to include last element
+    int_list = [i for i in range(lower_bound, upper_bound+1)]
+
+    # Calculate the cumulative probability
+    cdt = []
+    for x in int_list:
+        # Numerator
+        cum_prob = exp( (-abs(x - mu) ** 2)/(2 * sigma ** 2) ) / sum
+        if cdt != []:
+            # Cumulative probability
+            cum_prob += cdt[-1]
+        cdt.append(cum_prob)
+
+    # Generate random number between 0 and 1
+    u = uniform(0, 1)
+    count = 0
+
+    for i in cdt:
+        if i < u:
+            count += 1
+        else:
+            break
+
+    z = int_list[count]
+    return [z], sum

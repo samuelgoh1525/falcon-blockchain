@@ -9,8 +9,9 @@ from common import split, merge                         # Split, merge
 from fft import add, sub, mul, div, adj                 # Operations in coef.
 from fft import add_fft, sub_fft, mul_fft, div_fft, adj_fft  # Ops in FFT
 from fft import split_fft, merge_fft, fft_ratio         # FFT
-from samplerz import samplerz                           # Gaussian sampler in Z
-
+from samplerz import samplerz, small_samplerz           # Gaussian sampler in Z
+from samplerz import sum_prob                           # For calculation of acceptance ratio for IMHK
+from math import log
 
 def gram(B):
     """Compute the Gram matrix of B.
@@ -185,7 +186,7 @@ def ffnp_fft(t, T):
         return z
 
 
-def ffsampling_fft(t, T, sigmin, randombytes):
+def ffsampling_fft(t, T, sigmin, sum_log_prob, randombytes):
     """Compute the ffsampling of t, using T as auxilary information.
 
     Args:
@@ -198,13 +199,28 @@ def ffsampling_fft(t, T, sigmin, randombytes):
     """
     n = len(t[0]) * fft_ratio
     z = [0, 0]
+    # For IMHK
+    prob = [0, 0]
     if (n > 1):
         l10, T0, T1 = T
-        z[1] = merge_fft(ffsampling_fft(split_fft(t[1]), T1, sigmin, randombytes))
+        z_1, sum_log_prob = ffsampling_fft(split_fft(t[1]), T1, sigmin, sum_log_prob, randombytes)
+        z[1] = merge_fft(z_1)
         t0b = add_fft(t[0], mul_fft(sub_fft(t[1], z[1]), l10))
-        z[0] = merge_fft(ffsampling_fft(split_fft(t0b), T0, sigmin, randombytes))
-        return z
+        z_0, sum_log_prob = ffsampling_fft(split_fft(t0b), T0, sigmin, sum_log_prob, randombytes)
+        z[0] = merge_fft(z_0)
+        return z, sum_log_prob
     elif (n == 1):
-        z[0] = [samplerz(t[0][0].real, T[0], sigmin, randombytes)]
-        z[1] = [samplerz(t[1][0].real, T[0], sigmin, randombytes)]
-        return z
+        sigma = T[0]
+        if (sigma > sigmin):
+            # Use samplerz from FALCON
+            z[0] = [samplerz(t[0][0].real, sigma, sigmin, randombytes)]
+            z[1] = [samplerz(t[1][0].real, sigma, sigmin, randombytes)]
+            prob[0] = sum_prob(t[0][0].real, sigma)
+            prob[1] = sum_prob(t[1][0].real, sigma)
+        else:
+            # Use small_samplerz
+            z[0], prob[0] = small_samplerz(t[0][0].real, sigma)
+            z[1], prob[1] = small_samplerz(t[1][0].real, sigma)
+
+        sum_log_prob += log(prob[0]) + log(prob[1])
+        return z, sum_log_prob
