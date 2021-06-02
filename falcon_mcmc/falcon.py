@@ -326,49 +326,35 @@ class SecretKey:
         '''
         MCMC sampling
         '''
-        #TODO: change mixing time
-        '''
-        Initialise with which z_0
-        '''
-        waiting = True
-        while waiting:
-            use_ffsampling = input("Use ffsampling to init? (y/n)")
+        # Get initial state z_0 and i_mix
+        i_mix = None
+        if seed is None:
+            # If no seed is defined, use urandom as the pseudo-random source.
+            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None, urandom)
 
-            if use_ffsampling == 'y':
-                waiting = False
+        else:
+            # If a seed is defined, initialize a ChaCha20 PRG
+            # that is used to generate pseudo-randomness.
+            chacha_prng = ChaCha20(seed)
+            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None,
+                                   chacha_prng.randombytes)
 
-                if seed is None:
-                    # If no seed is defined, use urandom as the pseudo-random source.
-                    z_0, sum_log_prob_0 = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, urandom)
-
-                else:
-                    # If a seed is defined, initialize a ChaCha20 PRG
-                    # that is used to generate pseudo-randomness.
-                    chacha_prng = ChaCha20(seed)
-                    z_0, sum_log_prob_0 = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0,
-                                           chacha_prng.randombytes)
-
-            elif use_ffsampling == 'n':
-                waiting = False
-                z_0 = np_round(t_fft)
 
         '''
-        Testing
+        # When init with round(t_fft) instead of ffsampling for symmetric MCMC
+        z_0 = np_round(t_fft)
         '''
+        
+        print("i_mix: ", i_mix)
+
+        '''Testing'''
         v0_og, v1_og = self.calc_v(z_0)
         s_og = [sub(point, v0_og), neg(v1_og)]
         og_squared_norm = self.calc_norm(s_og)
         og_sum_log_prob = sum_log_prob_0
         num_moves = 0
         num_good_moves = 0
-        '''
-        Reduce sigma in T_fft?
-        '''
-        i_mix = int(input("Enter number of iterations: "))
-        '''
-        reduction_factor = float(input("Reduce sigma to: "))
-        normalize_tree(self.T_fft, self.sigma * reduction_factor)
-        '''
+        '''End Test'''
 
         waiting = True
         while waiting:
@@ -379,13 +365,13 @@ class SecretKey:
                 for i in range(i_mix):
                     if seed is None:
                         # If no seed is defined, use urandom as the pseudo-random source.
-                        z_fft, sum_log_prob_1 = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, urandom)
+                        z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None, urandom)
 
                     else:
                         # If a seed is defined, initialize a ChaCha20 PRG
                         # that is used to generate pseudo-randomness.
                         chacha_prng = ChaCha20(seed)
-                        z_fft, sum_log_prob_1 = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0,
+                        z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None,
                                                chacha_prng.randombytes)
 
                     old_new_ratio = sum_log_prob_1 - sum_log_prob_0
@@ -408,6 +394,7 @@ class SecretKey:
 
             elif independent == 's':
                 waiting = False
+                i_mix = int(input("Enter number of iterations: "))
 
                 self.T_fft = deepcopy(self.orig_T_fft)
                 new_sigma = float(input("Enter the new sigma to sample with for symmetric: "))
@@ -416,13 +403,13 @@ class SecretKey:
                 for i in range(i_mix):
                     if seed is None:
                         # If no seed is defined, use urandom as the pseudo-random source.
-                        z_fft, sum_log_prob = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, urandom)
+                        z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, None, urandom)
 
                     else:
                         # If a seed is defined, initialize a ChaCha20 PRG
                         # that is used to generate pseudo-randomness.
                         chacha_prng = ChaCha20(seed)
-                        z_fft, sum_log_prob = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0,
+                        z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, None,
                                                chacha_prng.randombytes)
 
                     v0_new, v1_new = self.calc_v(z_fft)
