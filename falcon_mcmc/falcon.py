@@ -4,7 +4,7 @@ https://falcon-sign.info/.
 """
 from common import q
 from numpy import set_printoptions
-from math import sqrt, exp, floor, log
+from math import sqrt, exp, floor, ceil, log
 from fft import fft, ifft, sub, neg, add_fft, mul_fft
 from ntt import sub_zq, mul_zq, div_zq
 from ffsampling import gram, ffldl_fft, ffsampling_fft
@@ -244,6 +244,7 @@ class SecretKey:
         # From f, g, F, G, compute the basis B0 of a NTRU lattice
         # as well as its Gram matrix and their fft's.
         B0 = [[self.g, neg(self.f)], [self.G, neg(self.F)]]
+        self.B0 = B0
         G0 = gram(B0)
         self.B0_fft = [[fft(elt) for elt in row] for row in B0]
         G0_fft = [[fft(elt) for elt in row] for row in G0]
@@ -344,7 +345,7 @@ class SecretKey:
         # When init with round(t_fft) instead of ffsampling for symmetric MCMC
         z_0 = np_round(t_fft)
         '''
-        
+
         print("i_mix: ", i_mix)
 
         '''Testing'''
@@ -362,7 +363,7 @@ class SecretKey:
             if independent == 'i':
                 waiting = False
 
-                for i in range(i_mix):
+                for i in range(ceil(i_mix)):
                     if seed is None:
                         # If no seed is defined, use urandom as the pseudo-random source.
                         z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None, urandom)
@@ -447,11 +448,6 @@ class SecretKey:
         print("\nNumber of Markov moves: ", num_moves, "\n")
         print("\nNumber of 'Good' Markov moves: ", num_good_moves, "\n")
 
-        '''
-        Restore T_fft
-        '''
-        self.T_fft = deepcopy(self.orig_T_fft)
-        normalize_tree(self.T_fft, self.sigma)
         return s
 
     def calc_v(self, z_fft):
@@ -514,6 +510,14 @@ class SecretKey:
                 TODO: delete own check
                 '''
                 print("Too big... retrying")
+
+        '''
+        Restore T_fft
+        '''
+        self.sigma = Params[n]["sigma"]
+        self.signature_bound = floor(Params[n]["sig_bound"])
+        self.T_fft = deepcopy(self.orig_T_fft)
+        normalize_tree(self.T_fft, self.sigma)
 
     def verify(self, message, signature):
         """
