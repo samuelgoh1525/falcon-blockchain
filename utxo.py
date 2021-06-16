@@ -110,7 +110,7 @@ class UTXO:
             index += 1
 
         return True
-    def make_transaction(self, sender, recipients, amounts, sender_key, is_falcon):
+    def make_transaction(self, sender, recipients, amounts, sender_key, is_falcon, ind_sym):
         # Note: recipients and amounts are <lists>
 
         total_amount = sum(amounts)
@@ -143,7 +143,7 @@ class UTXO:
                 utxo_entry.pop('address')
 
                 # For each input, generate a signature with the sender's private key
-                signature = keys.sign(utxo_entry, sender_key)
+                signature = keys.sign(utxo_entry, sender_key, ind_sym)
                 if is_falcon:
                     utxo_entry['signature'] = signature.hex()
                 else:

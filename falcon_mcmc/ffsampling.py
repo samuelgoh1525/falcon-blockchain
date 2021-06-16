@@ -212,10 +212,7 @@ def ffsampling_fft(t, T, sigmin, sum_log_prob, i_mix, randombytes):
     elif (n == 1):
         sigma = T[0]
 
-        if i_mix is None:
-            i_mix = theta3(2 * pi * (sigma ** 2))
-        else:
-            i_mix = i_mix * theta3(2 * pi * (sigma ** 2))
+        i_mix = i_mix * theta3(2 * pi * (sigma ** 2)) ** 2
 
         if (sigma > sigmin):
             # Use samplerz from FALCON
@@ -231,7 +228,7 @@ def ffsampling_fft(t, T, sigmin, sum_log_prob, i_mix, randombytes):
         sum_log_prob += log(prob[0]) + log(prob[1])
         return z, sum_log_prob, i_mix
 
-def theta3(tau, max=10):
+def theta3(tau, max=100):
     '''
     Compute approximation of Jacobi Theta_3 function
     '''
@@ -242,3 +239,32 @@ def theta3(tau, max=10):
         sum += exp(-pi * tau * (n ** 2))
 
     return sum
+
+def ffsampling_round(t, T, sigmin, sum_log_prob, i_mix, randombytes):
+    """
+    ffsampling version to round instead of sample
+    """
+    n = len(t[0]) * fft_ratio
+    z = [0, 0]
+    # For IMHK
+    prob = [0, 0]
+    if (n > 1):
+        l10, T0, T1 = T
+        z_1, sum_log_prob, i_mix = ffsampling_round(split_fft(t[1]), T1, sigmin, sum_log_prob, i_mix, randombytes)
+        z[1] = merge_fft(z_1)
+        t0b = add_fft(t[0], mul_fft(sub_fft(t[1], z[1]), l10))
+        z_0, sum_log_prob, i_mix = ffsampling_round(split_fft(t0b), T0, sigmin, sum_log_prob, i_mix, randombytes)
+        z[0] = merge_fft(z_0)
+        return z, sum_log_prob, i_mix
+    elif (n == 1):
+        sigma = T[0]
+
+        i_mix = i_mix * theta3(2 * pi * (sigma ** 2)) ** 2
+
+        z[0] = [round(t[0][0].real)]
+        z[1] = [round(t[1][0].real)]
+        prob[0] = sum_prob(t[0][0].real, sigma)
+        prob[1] = sum_prob(t[1][0].real, sigma)
+
+        sum_log_prob += log(prob[0]) + log(prob[1])
+        return z, sum_log_prob, i_mix

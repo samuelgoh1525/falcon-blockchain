@@ -13,6 +13,8 @@ from blockchain import Blockchain
 from utxo import UTXO
 import keys
 
+from timeit import default_timer as timer
+
 # Instantiate the Node
 app = Flask(__name__)
 
@@ -25,10 +27,9 @@ blockchain = Blockchain()
 # Instantiate the UTXO set
 utxo_set = UTXO()
 
-
 private_key = None
-
 falcon_mode = True
+ind_sym = 'o' #default to original FALCOn
 
 @app.route('/mine', methods=['GET'])
 def mine():
@@ -39,6 +40,8 @@ def mine():
     # 1) Remove the spent transaction outputs
     # 2) Add the new unspent transaction outputs
     global private_key
+    global ind_sym
+    start = timer()
     if private_key == None:
 
         if falcon_mode:
@@ -54,6 +57,9 @@ def mine():
 
     public_key_hex = public_key.hex()
 
+    end = timer()
+    print("Time elapsed for keygen: ", end-start, "seconds\n")
+
     block_index = blockchain.last_block['index'] + 1
 
     mined_input = [{
@@ -63,7 +69,11 @@ def mine():
         'amount': 100,
     }]
 
-    signature = keys.sign(mined_input, private_key)
+    start = timer()
+    signature = keys.sign(mined_input, private_key, ind_sym)
+    end = timer()
+    print("Time elapsed for sign: ", end-start, "seconds\n")
+
     if falcon_mode:
         mined_input[0]['signature'] = signature.hex()
     else:
@@ -120,6 +130,8 @@ def mine():
         'transactions': pow_block['transactions'],
         'hash': pow_block['hash'],
         'previous_hash': pow_block['previous_hash'],
+        'nonce': pow_block['previous_hash'],
+        'timestamp': pow_block['timestamp'],
     }
     print("\n", json.dumps(response, indent=2), "\n")
     return jsonify(response), 200
@@ -150,7 +162,6 @@ def verify_transaction():
             sender_pub_key_addr = transaction['outputs'][values['output_index']]['address']
             break
 
-    #signature = keys.sign(transaction, private_key)
     if sender_pub_key_addr != None:
         utxo_entry = {
             'id': values['id'],
@@ -180,6 +191,9 @@ def verify_transaction():
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     global private_key
+    global ind_sym
+
+    start = timer()
     if private_key == None:
 
         if falcon_mode:
@@ -196,6 +210,9 @@ def new_transaction():
     else:
         public_key_hex = public_key.hex()
 
+    end = timer()
+    print("Time elapsed for keygen: ", end-start, "seconds\n")
+
     values = request.get_json()
 
     required = ['recipients', 'amounts']
@@ -203,22 +220,11 @@ def new_transaction():
         return 'Missing values', 400
 
     # Create a new Transaction
-    # TODO: error checking if not enough coins
-    transaction = utxo_set.make_transaction(public_key_hex, values['recipients'], values['amounts'], private_key, falcon_mode)
+    start = timer()
+    transaction = utxo_set.make_transaction(public_key_hex, values['recipients'], values['amounts'], private_key, falcon_mode, ind_sym)
+    end = timer()
+    print("Time elapsed for new transaction (including sign): ", end-start, "seconds\n")
 
-    '''
-    transaction = blockchain.new_transaction(public_key_hex, values['recipient'], values['amount'])
-
-    # Generate signature for transaction
-    signature = keys.sign(transaction, private_key)
-    if falcon_mode:
-        transaction_bytes = json.dumps(transaction, sort_keys=True).encode('utf-8')
-        transaction['signature'] = signature.hex()
-        valid_sign = keys.verify_sign(transaction_bytes, signature, public_key_hex, is_falcon=falcon_mode)
-    else:
-        transaction['signature'] = (signature.signature).hex()
-        valid_sign = keys.verify_sign(signature.message, signature.signature, public_key_hex)
-    '''
     if transaction != None:
         index = blockchain.append_transaction(transaction)
         response = {
@@ -345,6 +351,7 @@ if __name__ == '__main__':
     use_falcon = input("Use FALCON? (y/n)")
     if use_falcon == 'y':
         falcon_mode = True
+        ind_sym = input("Use independent MHK/symmetric MK/original? (i/s/o)")
     elif use_falcon == 'n':
         falcon_mode = False
 

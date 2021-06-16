@@ -7,7 +7,7 @@ from numpy import set_printoptions
 from math import sqrt, exp, floor, ceil, log
 from fft import fft, ifft, sub, neg, add_fft, mul_fft
 from ntt import sub_zq, mul_zq, div_zq
-from ffsampling import gram, ffldl_fft, ffsampling_fft
+from ffsampling import gram, ffldl_fft, ffsampling_fft, ffsampling_round
 from ntrugen import ntru_gen
 from encoding import compress, decompress
 # https://pycryptodome.readthedocs.io/en/latest/src/hash/shake256.html
@@ -23,6 +23,8 @@ if sys.version_info >= (3, 4):
 from random import uniform
 from copy import deepcopy
 from numpy import round as np_round
+
+from timeit import default_timer as timer
 
 
 set_printoptions(linewidth=200, precision=5, suppress=True)
@@ -244,7 +246,6 @@ class SecretKey:
         # From f, g, F, G, compute the basis B0 of a NTRU lattice
         # as well as its Gram matrix and their fft's.
         B0 = [[self.g, neg(self.f)], [self.G, neg(self.F)]]
-        self.B0 = B0
         G0 = gram(B0)
         self.B0_fft = [[fft(elt) for elt in row] for row in B0]
         G0_fft = [[fft(elt) for elt in row] for row in G0]
@@ -303,7 +304,7 @@ class SecretKey:
             j += 1
         return hashed
 
-    def sample_preimage(self, point, seed=None):
+    def sample_preimage(self, point, type_in, sigma_new, i_mix_sym, overwrite, seed=None):
         """
         Sample a short vector s such that s[0] + s[1] * h = point.
         """
@@ -328,125 +329,141 @@ class SecretKey:
         MCMC sampling
         '''
         # Get initial state z_0 and i_mix
+        # If no MCMC sampling, this is the solution for original FALCON
         i_mix = None
         if seed is None:
             # If no seed is defined, use urandom as the pseudo-random source.
-            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None, urandom)
+            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, urandom)
 
         else:
             # If a seed is defined, initialize a ChaCha20 PRG
             # that is used to generate pseudo-randomness.
             chacha_prng = ChaCha20(seed)
-            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None,
+            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1,
                                    chacha_prng.randombytes)
 
 
         '''
-        # When init with round(t_fft) instead of ffsampling for symmetric MCMC
-        z_0 = np_round(t_fft)
+        # When initiating with round(t_fft) instead of ffsampling for symmetric MCMC
+        z_round = np_round(t_fft)
+        z_test, _, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, urandom)
+
+        v0_test, v1_test = self.calc_v(z_test)
+        s_test = [sub(point, v0_test), neg(v1_test)]
+        test_norm = self.calc_norm(s_test)
+
+        v0_round, v1_round = self.calc_v(z_round)
+        s_round = [sub(point, v0_round), neg(v1_round)]
+        round_norm = self.calc_norm(s_round)
+
+        print("z_0: ", og_squared_norm)
+        print("z_round: ", round_norm)
+        print("z_test: ", test_norm)
         '''
 
-        print("i_mix: ", i_mix)
+
+        #print("i_mix for IMHK: ", i_mix)
+
 
         '''Testing'''
+        '''
         v0_og, v1_og = self.calc_v(z_0)
         s_og = [sub(point, v0_og), neg(v1_og)]
         og_squared_norm = self.calc_norm(s_og)
         og_sum_log_prob = sum_log_prob_0
         num_moves = 0
         num_good_moves = 0
+        '''
         '''End Test'''
 
-        waiting = True
-        while waiting:
-            independent = input("Use IMHK (i) or symmetric (s)?")
-            if independent == 'i':
-                waiting = False
 
-                for i in range(ceil(i_mix)):
-                    if seed is None:
-                        # If no seed is defined, use urandom as the pseudo-random source.
-                        z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None, urandom)
 
-                    else:
-                        # If a seed is defined, initialize a ChaCha20 PRG
-                        # that is used to generate pseudo-randomness.
-                        chacha_prng = ChaCha20(seed)
-                        z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, None,
-                                               chacha_prng.randombytes)
+        if type_in == 'i':
+            if overwrite:
+                i_mix = 1
+            for i in range(ceil(i_mix)):
+                if seed is None:
+                    # If no seed is defined, use urandom as the pseudo-random source.
+                    z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, urandom)
 
-                    old_new_ratio = sum_log_prob_1 - sum_log_prob_0
-                    acceptance_ratio = min(0, old_new_ratio)
+                else:
+                    # If a seed is defined, initialize a ChaCha20 PRG
+                    # that is used to generate pseudo-randomness.
+                    chacha_prng = ChaCha20(seed)
+                    z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1,
+                                           chacha_prng.randombytes)
+
+                old_new_ratio = sum_log_prob_1 - sum_log_prob_0
+                acceptance_ratio = min(0, old_new_ratio)
+                u = uniform(0, 1)
+                # cannot be 0 due to log
+                while u == 0:
                     u = uniform(0, 1)
-                    # cannot be 0 due to log
-                    while u == 0:
-                        u = uniform(0, 1)
 
-                    print("[", i+1, "]: new_sum: ", sum_log_prob_1, ", old_sum: ", sum_log_prob_0)
+                #print("[", i+1, "]: new_sum: ", sum_log_prob_1, ", old_sum: ", sum_log_prob_0)
 
-                    if log(u) <= acceptance_ratio:
-                        print("\naccepted -- ", "ratio: ", acceptance_ratio, ", log(u): ", log(u), "\n")
-                        num_moves += 1
-                        z_0 = z_fft
-                        sum_log_prob_0 = sum_log_prob_1
+                if log(u) <= acceptance_ratio:
+                    #print("\naccepted -- ", "ratio: ", acceptance_ratio, ", log(u): ", log(u), "\n")
+                    num_moves += 1
+                    z_0 = z_fft
+                    sum_log_prob_0 = sum_log_prob_1
 
-                    if old_new_ratio >= 0:
-                        num_good_moves += 1
+                if old_new_ratio >= 0:
+                    num_good_moves += 1
 
-            elif independent == 's':
-                waiting = False
-                i_mix = int(input("Enter number of iterations: "))
+        elif type_in == 's':
+            i_mix = i_mix_sym
 
-                self.T_fft = deepcopy(self.orig_T_fft)
-                new_sigma = float(input("Enter the new sigma to sample with for symmetric: "))
-                normalize_tree(self.T_fft, new_sigma)
+            self.T_fft = deepcopy(self.orig_T_fft)
+            normalize_tree(self.T_fft, sigma_new)
 
-                for i in range(i_mix):
-                    if seed is None:
-                        # If no seed is defined, use urandom as the pseudo-random source.
-                        z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, None, urandom)
+            for i in range(i_mix):
+                if seed is None:
+                    # If no seed is defined, use urandom as the pseudo-random source.
+                    z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, 1, urandom)
 
-                    else:
-                        # If a seed is defined, initialize a ChaCha20 PRG
-                        # that is used to generate pseudo-randomness.
-                        chacha_prng = ChaCha20(seed)
-                        z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, None,
-                                               chacha_prng.randombytes)
+                else:
+                    # If a seed is defined, initialize a ChaCha20 PRG
+                    # that is used to generate pseudo-randomness.
+                    chacha_prng = ChaCha20(seed)
+                    z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, 1,
+                                           chacha_prng.randombytes)
 
-                    v0_new, v1_new = self.calc_v(z_fft)
-                    v0_old, v1_old = self.calc_v(z_0)
+                v0_new, v1_new = self.calc_v(z_fft)
+                v0_old, v1_old = self.calc_v(z_0)
 
-                    # The difference s = (point, 0) - v is such that:
-                    #     s is short
-                    #     s[0] + s[1] * h = point
-                    s_new = [sub(point, v0_new), neg(v1_new)]
-                    s_old = [sub(point, v0_old), neg(v1_old)]
-                    new_squared_norm = self.calc_norm(s_new)
-                    old_squared_norm = self.calc_norm(s_old)
+                # The difference s = (point, 0) - v is such that:
+                #     s is short
+                #     s[0] + s[1] * h = point
+                s_new = [sub(point, v0_new), neg(v1_new)]
+                s_old = [sub(point, v0_old), neg(v1_old)]
+                new_squared_norm = self.calc_norm(s_new)
+                old_squared_norm = self.calc_norm(s_old)
 
+                old_new_ratio = exp( (1 / (2 * (self.sigma ** 2) ) ) * (old_squared_norm - new_squared_norm) )
+                acceptance_ratio = min(1, old_new_ratio)
+                u = uniform(0, 1)
+                #print("[", i+1, "]: new_squared_norm: ", new_squared_norm, ", old_squared_norm: ", old_squared_norm)
+                if u <= acceptance_ratio:
+                    #print("\naccepted -- ", "ratio: ", acceptance_ratio, ", u: ", u, "\n")
+                    num_moves += 1
+                    z_0 = z_fft
 
-                    old_new_ratio = exp( (1 / (2 * (self.sigma ** 2) ) ) * (old_squared_norm - new_squared_norm) )
-                    acceptance_ratio = min(1, old_new_ratio)
-                    u = uniform(0, 1)
-                    print("[", i+1, "]: new_squared_norm: ", new_squared_norm, ", old_squared_norm: ", old_squared_norm)
-                    if u <= acceptance_ratio:
-                        print("\naccepted -- ", "ratio: ", acceptance_ratio, ", u: ", u, "\n")
-                        num_moves += 1
-                        z_0 = z_fft
-
-                    if old_new_ratio >= 1:
-                        num_good_moves += 1
+                if old_new_ratio >= 1:
+                    num_good_moves += 1
 
         v0, v1 = self.calc_v(z_0)
         s = [sub(point, v0), neg(v1)]
         '''
         Testing
         '''
+        '''
         final_squared_norm = self.calc_norm(s)
         print("\nOriginal squared norm: ", og_squared_norm, "; Final squared norm: ", final_squared_norm, "\n")
-        print("\nOriginal sum log prob: ", og_sum_log_prob, "; Final sum log prob: ", sum_log_prob_0, "\n")
+        #print("\nOriginal sum log prob: ", og_sum_log_prob, "; Final sum log prob: ", sum_log_prob_0, "\n")
         print("\nNumber of Markov moves: ", num_moves, "\n")
         print("\nNumber of 'Good' Markov moves: ", num_good_moves, "\n")
+        '''
 
         return s
 
@@ -468,12 +485,13 @@ class SecretKey:
 
         return norm_sign
 
-    def sign(self, message, randombytes=urandom):
+    def sign(self, message, type_in='', sigma_og=None, sigma_new=30, i_mix_sym=1000, overwrite=False, randombytes=urandom):
         """
         Sign a message. The message MUST be a byte string or byte array.
         Optionally, one can select the source of (pseudo-)randomness used
         (default: urandom).
         """
+        start = timer()
         int_header = 0x30 + logn[self.n]
         header = int_header.to_bytes(1, "little")
 
@@ -483,19 +501,20 @@ class SecretKey:
         # We repeat the signing procedure until we find a signature that is
         # short enough (both the Euclidean norm and the bytelength)
 
-        '''For testing purposes'''
-        self.sigma = float(input("Enter the initial sigma to sample with:"))
-        self.signature_bound = (1.1 ** 2) * 2 * self.n * (self.sigma ** 2)
-        self.T_fft = deepcopy(self.orig_T_fft)
-        normalize_tree(self.T_fft, self.sigma)
-        '''End test'''
+        '''Set the original sigma to sample'''
+        if sigma_og is not None:
+            self.sigma = float(sigma_og)
+            self.signature_bound = (1.1 ** 2) * 2 * self.n * (self.sigma ** 2)
+            self.T_fft = deepcopy(self.orig_T_fft)
+            normalize_tree(self.T_fft, self.sigma)
+
         while(1):
             if (randombytes == urandom):
-                s = self.sample_preimage(hashed)
+                s = self.sample_preimage(hashed, type_in, sigma_new, i_mix_sym, overwrite)
 
             else:
                 seed = randombytes(SEED_LEN)
-                s = self.sample_preimage(hashed, seed=seed)
+                s = self.sample_preimage(hashed, type_in, sigma_new, i_mix_sym, overwrite, seed=seed)
             norm_sign = self.calc_norm(s)
             # Check the Euclidean norm
             if norm_sign <= self.signature_bound:
@@ -503,21 +522,17 @@ class SecretKey:
                 enc_s = compress(s[1], self.sig_bytelen - HEAD_LEN - SALT_LEN)
                 # Check that the encoding is valid (sometimes it fails)
                 if (enc_s is not False):
+                    '''
+                    Restore T_fft
+                    '''
+                    self.sigma = Params[self.n]["sigma"]
+                    self.signature_bound = floor(Params[self.n]["sig_bound"])
+                    self.T_fft = deepcopy(self.orig_T_fft)
+                    normalize_tree(self.T_fft, self.sigma)
+                    end = timer()
+                    print("Time elapsed for sign (inside falcon.py): ", end-start, "\n")
+
                     return header + salt + enc_s
-
-            else:
-                '''
-                TODO: delete own check
-                '''
-                print("Too big... retrying")
-
-        '''
-        Restore T_fft
-        '''
-        self.sigma = Params[n]["sigma"]
-        self.signature_bound = floor(Params[n]["sig_bound"])
-        self.T_fft = deepcopy(self.orig_T_fft)
-        normalize_tree(self.T_fft, self.sigma)
 
     def verify(self, message, signature):
         """

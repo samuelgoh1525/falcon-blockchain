@@ -3,7 +3,9 @@ import nacl.signing
 import nacl.utils
 from nacl.exceptions import BadSignatureError
 
-import falcon.falcon as falcon
+import sys
+sys.path.append('/mnt/c/Users/samue/OneDrive - Imperial College London/Year 3/0. FYP/falcon-blockchain/falcon_mcmc')
+from falcon_mcmc import falcon
 
 import hashlib
 import os
@@ -114,12 +116,30 @@ def get_salt_password():
 
     return salt, password
 
-def sign(message, private_key):
+def sign(message, private_key, ind_sym):
     '''
     message: <dict>
+
+    ind_sym: <string> to decide if to use indendent or symmetric for FALCON
     '''
     message_bytes = json.dumps(message, sort_keys=True).encode('utf-8')
-    signature = private_key.sign(message_bytes)
+
+    if ind_sym == 'i':
+        '''
+        Default parameters to use for independent:
+            - sigma_og = 70
+        '''
+        signature = private_key.sign(message_bytes, ind_sym, 70)
+    elif ind_sym == 's':
+        '''
+        Default parameters to use for symmetric:
+            - sigma_og = 60
+            - sigma_new = 30
+            - i_mix_sym = 100
+        '''
+        signature = private_key.sign(message_bytes, ind_sym, 60)
+    else:
+        signature = private_key.sign(message_bytes)
 
     return signature
 
