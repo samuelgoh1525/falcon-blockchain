@@ -366,14 +366,12 @@ class SecretKey:
 
 
         '''Testing'''
-        '''
         v0_og, v1_og = self.calc_v(z_0)
         s_og = [sub(point, v0_og), neg(v1_og)]
         og_squared_norm = self.calc_norm(s_og)
         og_sum_log_prob = sum_log_prob_0
         num_moves = 0
         num_good_moves = 0
-        '''
         '''End Test'''
 
 

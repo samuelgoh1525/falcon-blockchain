@@ -5,7 +5,7 @@ Source code adapted from [dvf/blockchain](https://github.com/dvf/blockchain). Pr
 
 ### Running instructions
 ```
-python node.py
+>>> python node.py
 ```
 Note: Tested on Python 3.9.5. If you have poetry, you can use `poetry install` to install all necessary dependencies.
 
@@ -22,7 +22,7 @@ Note that if FALCON is chosen, there will be an additional prompt to check if yo
 
 ### FALCON signature
 
-The first time a transaction is carried out, there will be prompts for several parameter:
+The first time a transaction is carried out, there will be prompts for several parameters:
 ```
 >>> Enter degree of n: [This is the ring degree of FALCON, e.g. 512]
 >>> Retrieve polys from data/polys.txt? (y/n): ['n' if first time generating private key or if saved polys are in a different file location]
@@ -32,7 +32,7 @@ The first time a transaction is carried out, there will be prompts for several p
 
 ### Ed25519 (PyNaCl) signature
 
-The first time a transaction is carried out, there will be prompts for several parameter:
+The first time a transaction is carried out, there will be prompts for several parameters:
 ```
 >>> Do you have a salt? (y/n): ['n' if first time generating salt for private key. Note: salt will be saved in /data/salt.txt for future use]
 >>> Is it in /data/salt.txt? (y/n/raw) ['n' if salt saved in different file location; 'raw' to type in salt directly]
@@ -50,7 +50,7 @@ Send the following HTTP requests, e.g. using [Postman](https://www.postman.com/d
 - [GET] `/chain/get` : Get entire blockchain on node.
 - [GET] `/chain/valid` : Check if blockchain is valid.
 - [GET] `/utxo/all` : Get entire UTXO set.
-- [GET] `/utxo/user` : Get UTXOs specific to a user, i.e., how many coins a user owns. Reqruired JSON fields: `'user'`.
+- [GET] `/utxo/user` : Get UTXOs specific to a user, i.e., how many coins a user owns. Required JSON fields: `'user'`.
 - [GET] `/utxo/unmined` : Get remaining unmined coins.
 - [POST] `/nodes/register` : Register new list of nodes to current node. Required JSON field: `'nodes' <list>`.
 - [GET] `/nodes/resolve` : Compare blockchain with other nodes to get longest chain (consensus scheme).

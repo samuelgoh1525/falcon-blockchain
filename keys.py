@@ -4,11 +4,11 @@ import nacl.utils
 from nacl.exceptions import BadSignatureError
 
 import sys
-sys.path.append('/mnt/c/Users/samue/OneDrive - Imperial College London/Year 3/0. FYP/falcon-blockchain/falcon_mcmc')
+import os
+sys.path.append(os.path.join(sys.path[0],'falcon_mcmc'))
 from falcon_mcmc import falcon
 
 import hashlib
-import os
 import json
 import pickle
 
