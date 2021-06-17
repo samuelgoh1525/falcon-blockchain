@@ -3,11 +3,6 @@
 ## Blockchain
 Source code adapted from [dvf/blockchain](https://github.com/dvf/blockchain). Primarily modified by adding key generation and signatures.
 
-#### TODO:
-- Add transaction identification using UTXO model
-- Limit total supply of coins
-- Improve node system
-
 ### Running instructions
 ```
 python node.py
@@ -50,9 +45,13 @@ The first time a transaction is carried out, there will be prompts for several p
 Send the following HTTP requests, e.g. using [Postman](https://www.postman.com/downloads/), for the following interactions. Note: the request is preceded by the HTTP address, e.g. http://localhost:5000/mine:
 - [GET] /mine: Mine a new block using the POW scheme, adding all pending transactions to the block.
 - [GET] /transactions/get: Get all pending transactions.
-- [POST] /transactions/new: Make a new transaction. Required JSON fields: 'recipient', 'amount'.
+- [POST] /transactions/new: Make a new transaction. Required JSON fields: 'recipients', 'amounts'.
+- [GET] /transactions/verify: Verify a transaction. Required JSON fields: 'id', 'output_index', 'block_index', 'amount', 'signature'.
 - [GET] /chain/get: Get entire blockchain on node.
 - [GET] /chain/valid: Check if blockchain is valid.
+- [GET] /utxo/all: Get entire UTXO set.
+- [GET] /utxo/user: Get UTXOs specific to a user, i.e., how many coins a user owns. Reqruired JSON fields: 'user'.
+- [GET] /utxo/unmined: Get remaining unmined coins.
 - [POST] /nodes/register: Register new list of nodes to current node. Required JSON field: 'nodes' <list>.
 - [GET] /nodes/resolve: Compare blockchain with other nodes to get longest chain (consensus scheme).
 
