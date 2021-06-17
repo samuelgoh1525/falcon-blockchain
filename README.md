@@ -20,6 +20,11 @@ You will be prompted for a port number to listen for HTTP requests on, as well a
 >>> Use FALCON? (y/n): [e.g. y]
 ```
 
+Note that if FALCON is chosen, there will be an additional prompt to check if you would like to utilise MCMC sampling with either the Independent Metropolis-Hastings-Klein algorithm (i) or Symmetric Metropolis-Klein algorithm (s), or to use the original FALCON signature scheme (o):
+```
+>>> Use independent MHK/symmetric MK/original? (i/s/o): [e.g. o]
+```
+
 ### FALCON signature
 
 The first time a transaction is carried out, there will be prompts for several parameter:
@@ -51,10 +56,10 @@ Send the following HTTP requests, e.g. using [Postman](https://www.postman.com/d
 - [POST] /nodes/register: Register new list of nodes to current node. Required JSON field: 'nodes' <list>.
 - [GET] /nodes/resolve: Compare blockchain with other nodes to get longest chain (consensus scheme).
 
-## MCMC-FALCON (work in progress)
-Implementing random-walk MCMC sampling based on [Symmetric Metropolis-Klein Algorithm for Lattice Gaussian Sampling](https://arxiv.org/abs/1501.05757) in the post-quantum [FALCON](https://falcon-sign.info/) signature scheme. Current Python implementation (located in subfolder /falcon_mcmc) adapted from the [original FALCON Python source code](https://github.com/tprest/falcon.py).
+## MCMC-FALCON
+Utilising MCMC sampling, based on the [Independent Metropolis-Hastings-Klein (IMHK) algorithm and the Symmetric Metropolis-Klein (SMK) Algorithm for Lattice Gaussian Sampling](https://arxiv.org/abs/1501.05757) in the trapdoor sampler of the post-quantum [FALCON](https://falcon-sign.info/) signature scheme. Current Python implementation (located in subfolder `/falcon_mcmc`) adapted from the [original FALCON Python source code](https://github.com/tprest/falcon.py).
 
-Main changes are made to `SecretKey.sample_preimage()` in `SecretKey.sign()`.
+Main changes are made to `SecretKey.sample_preimage()` in `SecretKey.sign()`, and `ffsampling_fft()` for the calculation of the mixing time and acceptance ratio of the MCMC sampling techniques.
 
 ### Running instructions
 Refer to [FALCON README.md](falcon_mcmc/README.md) for detailed instructions. Summary of basic functions listed below:
@@ -66,4 +71,31 @@ Refer to [FALCON README.md](falcon_mcmc/README.md) for detailed instructions. Su
 >>> pk.verify(b"Hello", sig)
 True
 ```
+
+Additionally, note that to utilise MCMC sampling, several additional parameters would have to be passed to `SecretKey.sign()`. The input (and default parameters) are as follows:
+```
+>>> SecretKey.sign(message, type_in='', sigma_og=None, sigma_new=30, i_mix_sym=1000, overwrite=False, randombytes=urandom)
+```
+
+The additional parameters to take note of are:
+- `type_in=''`: Whether to use IMHK (`'i'`), SMK (`'s'`), or no MCMC sampling, i.e., original FALCON, (default value of `''`).
+- `sigma_og=None`: The original sigma to sample with, for IMHK and SMK. Recommended parameters are 65-75 for IMHK, and 60 for SMK (n = 512).
+- `sigma_new=30`: The subsequent sigma to sample with for the SMK, as part of the two-stage sampling process. Recommended parameter is the default value of 30 (n = 512).
+- `i_mix_sym=1000`: Mixing time for SMK. Recommended parameter is the default value of 1000 (n = 512).
+
+Therefore, to sign with original FALCON:
+```
+>>> sig = sk.sign(b"Hello")
+```
+
+To sign with IMHK:
+```
+>>> sig = sk.sign(b"Hello", type_in='i', sigma_og=75)
+```
+
+To sign with SMK:
+```
+>>> sig = sk.sign(b"Hello", type_in='s', sigma_og=60, sigma_new=30, i_mix_sym=1000)
+```
+
 Note: Tested on Python 3.9.5. If you have poetry, you can use `poetry install` to install all necessary dependencies.

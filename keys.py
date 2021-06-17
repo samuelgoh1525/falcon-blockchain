@@ -129,13 +129,13 @@ def sign(message, private_key, ind_sym):
         Default parameters to use for independent:
             - sigma_og = 70
         '''
-        signature = private_key.sign(message_bytes, ind_sym, 70)
+        signature = private_key.sign(message_bytes, ind_sym, 75)
     elif ind_sym == 's':
         '''
         Default parameters to use for symmetric:
             - sigma_og = 60
             - sigma_new = 30
-            - i_mix_sym = 100
+            - i_mix_sym = 1000
         '''
         signature = private_key.sign(message_bytes, ind_sym, 60)
     else:
