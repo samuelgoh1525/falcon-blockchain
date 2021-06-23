@@ -362,7 +362,7 @@ class SecretKey:
         '''
 
 
-        print("i_mix for IMHK: ", i_mix)
+        #print("i_mix for IMHK: ", i_mix)
 
 
         '''Testing'''
