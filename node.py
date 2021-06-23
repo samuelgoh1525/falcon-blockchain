@@ -130,7 +130,7 @@ def mine():
         'transactions': pow_block['transactions'],
         'hash': pow_block['hash'],
         'previous_hash': pow_block['previous_hash'],
-        'nonce': pow_block['previous_hash'],
+        'nonce': pow_block['nonce'],
         'timestamp': pow_block['timestamp'],
     }
     print("\n", json.dumps(response, indent=2), "\n")
