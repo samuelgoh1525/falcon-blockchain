@@ -333,13 +333,13 @@ class SecretKey:
         i_mix = None
         if seed is None:
             # If no seed is defined, use urandom as the pseudo-random source.
-            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, urandom)
+            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, False, urandom)
 
         else:
             # If a seed is defined, initialize a ChaCha20 PRG
             # that is used to generate pseudo-randomness.
             chacha_prng = ChaCha20(seed)
-            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1,
+            z_0, sum_log_prob_0, i_mix = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, False,
                                    chacha_prng.randombytes)
 
 
@@ -362,16 +362,18 @@ class SecretKey:
         '''
 
 
-        #print("i_mix for IMHK: ", i_mix)
+        print("i_mix for IMHK: ", i_mix)
 
 
         '''Testing'''
+        '''
         v0_og, v1_og = self.calc_v(z_0)
         s_og = [sub(point, v0_og), neg(v1_og)]
         og_squared_norm = self.calc_norm(s_og)
         og_sum_log_prob = sum_log_prob_0
         num_moves = 0
         num_good_moves = 0
+        '''
         '''End Test'''
 
 
@@ -379,16 +381,16 @@ class SecretKey:
         if type_in == 'i':
             if overwrite:
                 i_mix = 1
-            for i in range(ceil(i_mix)):
+            for i in range(ceil(i_mix) - 1):
                 if seed is None:
                     # If no seed is defined, use urandom as the pseudo-random source.
-                    z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, urandom)
+                    z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, True, urandom)
 
                 else:
                     # If a seed is defined, initialize a ChaCha20 PRG
                     # that is used to generate pseudo-randomness.
                     chacha_prng = ChaCha20(seed)
-                    z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1,
+                    z_fft, sum_log_prob_1, _ = ffsampling_fft(t_fft, self.T_fft, self.sigmin, 0, 1, True,
                                            chacha_prng.randombytes)
 
                 old_new_ratio = sum_log_prob_1 - sum_log_prob_0
@@ -402,29 +404,28 @@ class SecretKey:
 
                 if log(u) <= acceptance_ratio:
                     #print("\naccepted -- ", "ratio: ", acceptance_ratio, ", log(u): ", log(u), "\n")
-                    num_moves += 1
+                    #num_moves += 1
                     z_0 = z_fft
                     sum_log_prob_0 = sum_log_prob_1
 
+                '''
                 if old_new_ratio >= 0:
                     num_good_moves += 1
+                '''
 
         elif type_in == 's':
             i_mix = i_mix_sym
 
-            self.T_fft = deepcopy(self.orig_T_fft)
-            normalize_tree(self.T_fft, sigma_new)
-
             for i in range(i_mix):
                 if seed is None:
                     # If no seed is defined, use urandom as the pseudo-random source.
-                    z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, 1, urandom)
+                    z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, 1, True, urandom)
 
                 else:
                     # If a seed is defined, initialize a ChaCha20 PRG
                     # that is used to generate pseudo-randomness.
                     chacha_prng = ChaCha20(seed)
-                    z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, 1,
+                    z_fft, sum_log_prob, _ = ffsampling_fft(z_0, self.T_fft, self.sigmin, 0, 1, True,
                                            chacha_prng.randombytes)
 
                 v0_new, v1_new = self.calc_v(z_fft)
@@ -444,11 +445,12 @@ class SecretKey:
                 #print("[", i+1, "]: new_squared_norm: ", new_squared_norm, ", old_squared_norm: ", old_squared_norm)
                 if u <= acceptance_ratio:
                     #print("\naccepted -- ", "ratio: ", acceptance_ratio, ", u: ", u, "\n")
-                    num_moves += 1
+                    #num_moves += 1
                     z_0 = z_fft
-
+                '''
                 if old_new_ratio >= 1:
                     num_good_moves += 1
+                '''
 
         v0, v1 = self.calc_v(z_0)
         s = [sub(point, v0), neg(v1)]
@@ -528,7 +530,7 @@ class SecretKey:
                     self.T_fft = deepcopy(self.orig_T_fft)
                     normalize_tree(self.T_fft, self.sigma)
                     end = timer()
-                    print("Time elapsed for sign (inside falcon.py): ", end-start, "\n")
+                    #print("Time elapsed for sign (inside falcon.py): ", end-start, "\n")
 
                     return header + salt + enc_s
 

@@ -186,7 +186,7 @@ def ffnp_fft(t, T):
         return z
 
 
-def ffsampling_fft(t, T, sigmin, sum_log_prob, i_mix, randombytes):
+def ffsampling_fft(t, T, sigmin, sum_log_prob, i_mix, i_mix_overwrite, randombytes):
     """Compute the ffsampling of t, using T as auxilary information.
 
     Args:
@@ -203,16 +203,17 @@ def ffsampling_fft(t, T, sigmin, sum_log_prob, i_mix, randombytes):
     prob = [0, 0]
     if (n > 1):
         l10, T0, T1 = T
-        z_1, sum_log_prob, i_mix = ffsampling_fft(split_fft(t[1]), T1, sigmin, sum_log_prob, i_mix, randombytes)
+        z_1, sum_log_prob, i_mix = ffsampling_fft(split_fft(t[1]), T1, sigmin, sum_log_prob, i_mix, i_mix_overwrite, randombytes)
         z[1] = merge_fft(z_1)
         t0b = add_fft(t[0], mul_fft(sub_fft(t[1], z[1]), l10))
-        z_0, sum_log_prob, i_mix = ffsampling_fft(split_fft(t0b), T0, sigmin, sum_log_prob, i_mix, randombytes)
+        z_0, sum_log_prob, i_mix = ffsampling_fft(split_fft(t0b), T0, sigmin, sum_log_prob, i_mix, i_mix_overwrite, randombytes)
         z[0] = merge_fft(z_0)
         return z, sum_log_prob, i_mix
     elif (n == 1):
         sigma = T[0]
 
-        i_mix = i_mix * theta3(2 * pi * (sigma ** 2)) ** 2
+        if not i_mix_overwrite:
+            i_mix = i_mix * theta3(2 * pi * (sigma ** 2)) ** 2
 
         if (sigma > sigmin):
             # Use samplerz from FALCON
@@ -226,9 +227,9 @@ def ffsampling_fft(t, T, sigmin, sum_log_prob, i_mix, randombytes):
             z[1], prob[1] = small_samplerz(t[1][0].real, sigma)
 
         sum_log_prob += log(prob[0]) + log(prob[1])
-        return z, sum_log_prob, i_mix
+        return z, 0, i_mix
 
-def theta3(tau, max=100):
+def theta3(tau, max=10):
     '''
     Compute approximation of Jacobi Theta_3 function
     '''

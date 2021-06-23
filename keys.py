@@ -12,8 +12,11 @@ import hashlib
 import json
 import pickle
 
+from timeit import default_timer as timer
+
 
 def generate_private_key(password='', salt=None, is_falcon=False):
+    start = timer()
     if is_falcon:
         n, saved_polys, polys = get_polys()
 
@@ -41,6 +44,9 @@ def generate_private_key(password='', salt=None, is_falcon=False):
         seed = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000, 32)
 
         private_key = nacl.signing.SigningKey(seed)
+
+    end = timer()
+    #print("Time elapsed for sign (ECDSA): ", end-start, "\n")
 
     return private_key
 

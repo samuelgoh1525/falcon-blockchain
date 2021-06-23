@@ -58,7 +58,7 @@ def mine():
     public_key_hex = public_key.hex()
 
     end = timer()
-    print("Time elapsed for keygen: ", end-start, "seconds\n")
+    #print("Time elapsed for keygen: ", end-start, "seconds\n")
 
     block_index = blockchain.last_block['index'] + 1
 
@@ -72,7 +72,7 @@ def mine():
     start = timer()
     signature = keys.sign(mined_input, private_key, ind_sym)
     end = timer()
-    print("Time elapsed for sign: ", end-start, "seconds\n")
+    #print("Time elapsed for sign: ", end-start, "seconds\n")
 
     if falcon_mode:
         mined_input[0]['signature'] = signature.hex()
@@ -211,7 +211,7 @@ def new_transaction():
         public_key_hex = public_key.hex()
 
     end = timer()
-    print("Time elapsed for keygen: ", end-start, "seconds\n")
+    #print("Time elapsed for keygen: ", end-start, "seconds\n")
 
     values = request.get_json()
 
@@ -223,7 +223,7 @@ def new_transaction():
     start = timer()
     transaction = utxo_set.make_transaction(public_key_hex, values['recipients'], values['amounts'], private_key, falcon_mode, ind_sym)
     end = timer()
-    print("Time elapsed for new transaction (including sign): ", end-start, "seconds\n")
+    #print("Time elapsed for new transaction (including sign): ", end-start, "seconds\n")
 
     if transaction != None:
         index = blockchain.append_transaction(transaction)
